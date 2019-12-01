@@ -1,0 +1,7 @@
+[package]
+name = "advent_2019"
+version = "0.1.0"
+authors = ["Tom Bulsink <nospam@sorrowed.nl>"]
+edition = "2018"
+
+[dependencies]
