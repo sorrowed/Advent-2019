@@ -9,7 +9,7 @@ fn read_program(input: &str) -> Vec<usize> {
 		.collect()
 }
 
-fn execute(mut program: Vec<usize>) {
+fn execute(mut program: Vec<usize>) -> usize {
 	let mut pc: usize = 0;
 	let mut opcode = program[pc];
 	while opcode != 99 {
@@ -30,12 +30,10 @@ fn execute(mut program: Vec<usize>) {
 
 			_ => {}
 		}
-//		println!("{} -> {}", parm3, program[parm3]);
-
 
 		opcode = program[pc];
 	}
-	println!("{}", program[0]);
+	return program[0];
 }
 
 pub fn test() {
@@ -48,4 +46,24 @@ pub fn part1() {
 	program[1] = 12;
 	program[2] = 2;
 	execute(program);
+}
+
+pub fn part2() {
+	for verb in 0..100 {
+		for noun in 0..100 {
+			let mut program = read_program(input());
+			program[1] = noun;
+			program[2] = verb;
+			let result = execute(program);
+			if result == 19690720 {
+				println!(
+					"noun: {} verb: {} result: {}",
+					noun,
+					verb,
+					100 * noun + verb
+				);
+				break;
+			}
+		}
+	}
 }
