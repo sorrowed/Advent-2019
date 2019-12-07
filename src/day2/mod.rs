@@ -9,9 +9,11 @@ fn read_program(input: &str) -> Vec<usize> {
 		.collect()
 }
 
+
 fn execute(mut program: Vec<usize>) -> usize {
 	let mut pc: usize = 0;
 	let mut opcode = program[pc];
+	
 	while opcode != 99 {
 		let parm1 = program[pc + 1];
 		let parm2 = program[pc + 2];
