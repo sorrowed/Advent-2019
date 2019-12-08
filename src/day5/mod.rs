@@ -39,10 +39,12 @@ pub fn test() {
 }
 
 pub fn test_compare() {
-	let source = ["3,9,8,9,10,9,4,9,99,-1,8",
-								"3,9,7,9,10,9,4,9,99,-1,8",
-								"3,3,1108,-1,8,3,4,3,99",
-								"3,3,1107,-1,8,3,4,3,99"];
+	let source = [
+		"3,9,8,9,10,9,4,9,99,-1,8",
+		"3,9,7,9,10,9,4,9,99,-1,8",
+		"3,3,1108,-1,8,3,4,3,99",
+		"3,3,1107,-1,8,3,4,3,99",
+	];
 
 	for s in source.iter() {
 		let mut program = read_program(s);
@@ -67,4 +69,8 @@ pub fn part1() {
 	execute_program(&mut program);
 }
 
-pub fn part2() {}
+pub fn part2() {
+	let mut program = read_program(input());
+
+	execute_program(&mut program);
+}
