@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io::{self, Read, Write};
 
 #[derive(Clone, Copy)]
 pub enum ParameterMode {
@@ -66,6 +67,10 @@ pub enum Opcode {
 	MUL = 2,
 	IN = 3,
 	OUT = 4,
+	JIT = 5,
+	JIZ = 6,
+	LT = 7,
+	EQ = 8,
 	QUIT = 99,
 	INVALID,
 }
@@ -76,6 +81,10 @@ impl std::fmt::Display for Opcode {
 			Opcode::MUL => write!(f, "MUL\t"),
 			Opcode::IN => write!(f, "IN\t"),
 			Opcode::OUT => write!(f, "OUT\t"),
+			Opcode::JIT => write!(f, "JIT\t"),
+			Opcode::JIZ => write!(f, "JIZ\t"),
+			Opcode::LT => write!(f, "LT\t"),
+			Opcode::EQ => write!(f, "EQ\t"),
 			Opcode::QUIT => write!(f, "QUIT"),
 			_ => write!(f, "ERR!\t"),
 		}
@@ -112,6 +121,8 @@ impl Instruction {
 	}
 
 	pub fn execute(mut self, program: &mut Vec<i32>, pc: usize) -> usize {
+		let mut new_pc = pc + self.size;
+
 		match self.opcode {
 			Opcode::ADD => {
 				let a = self.parameters[0].get(program);
@@ -138,16 +149,61 @@ impl Instruction {
 				}
 			}
 			Opcode::IN => {
-				&mut self.parameters[0].set(program, 1); // The only input is 1
+				io::stdout().write_all(b"INPUT?\n").expect("ERR!");
+
+				let mut input = String::new();
+
+				match io::stdin().read_line(&mut input) {
+					Ok(_n) => {
+						&mut self.parameters[0].set(program, input.trim().parse::<i32>().unwrap());
+					}
+					Err(error) => println!("error: {}", error),
+				}
 			}
 			Opcode::OUT => {
-				println!("DIAGNOSTICS: {}", self.parameters[0].get(program).unwrap());
+				writeln!(io::stdout(), "OUT {}", self.parameters[0].get(program).unwrap() ).expect("ERR!");
+			}
+
+			Opcode::JIT => {
+				let a = self.parameters[0].get(program);
+				let b = self.parameters[1].get(program);
+				if a != Some(0) {
+					new_pc = b.unwrap() as usize;
+				}
+			}
+
+			Opcode::JIZ => {
+				let a = self.parameters[0].get(program);
+				let b = self.parameters[1].get(program);
+				if a == Some(0) {
+					new_pc = b.unwrap() as usize;
+				}
+			}
+
+			Opcode::LT => {
+				let a = self.parameters[0].get(program);
+				let b = self.parameters[1].get(program);
+				if Some(a) < Some(b) {
+					&mut self.parameters[2].set(program, 1);
+				} else {
+					&mut self.parameters[2].set(program, 0);
+				}
+			}
+
+			Opcode::EQ => {
+				let a = self.parameters[0].get(program);
+				let b = self.parameters[1].get(program);
+				if Some(a) == Some(b) {
+					&mut self.parameters[2].set(program, 1);
+				} else {
+					&mut self.parameters[2].set(program, 0);
+				}
 			}
 
 			_ => {}
 		}
 
-		pc + self.size
+		new_pc
 	}
 
 	pub fn parse(program: &Vec<i32>, pc: usize) -> Instruction {
@@ -161,12 +217,16 @@ impl Instruction {
 			2 => Opcode::MUL,
 			3 => Opcode::IN,
 			4 => Opcode::OUT,
+			5 => Opcode::JIT,
+			6 => Opcode::JIZ,
+			7 => Opcode::LT,
+			8 => Opcode::EQ,
 			99 => Opcode::QUIT,
 			_ => Opcode::INVALID,
 		};
 
 		match result.opcode {
-			Opcode::ADD | Opcode::MUL => {
+			Opcode::ADD | Opcode::MUL | Opcode::LT | Opcode::EQ => {
 				for rank in 0..3 {
 					let p = &mut result.parameters[rank];
 
@@ -179,6 +239,14 @@ impl Instruction {
 
 				p.parse(instruction, 0, program[pc + result.size]);
 				result.size += 1;
+			}
+			Opcode::JIT | Opcode::JIZ => {
+				for rank in 0..2 {
+					let p = &mut result.parameters[rank];
+
+					p.parse(instruction, rank, program[pc + result.size]);
+					result.size += 1;
+				}
 			}
 			Opcode::QUIT => {
 				result.size = std::usize::MAX;
