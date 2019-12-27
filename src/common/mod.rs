@@ -1,3 +1,4 @@
+use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -9,4 +10,8 @@ pub fn import(name: &str) -> Vec<i32> {
 		vec.push(line.unwrap().parse::<i32>().unwrap())
 	}
 	return vec;
+}
+
+pub fn import_lines(name: &str) -> String {
+	fs::read_to_string(name).expect("Error parsing file")
 }
