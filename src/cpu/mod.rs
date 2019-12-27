@@ -257,3 +257,16 @@ impl Instruction {
 		result
 	}
 }
+
+pub fn execute(program: &mut Vec<i32>) {
+	let mut pc = 0;
+	loop {
+		let instruction = Instruction::parse(&program, pc);
+		//println!("{}", instruction);
+		if instruction.is_quit() {
+			break;
+		} else {
+			pc = instruction.execute(program, pc);
+		}
+	}
+}
