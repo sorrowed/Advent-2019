@@ -1,12 +1,52 @@
 use std::fmt;
 use std::io::{self, Read, Write};
 
+#[derive(Clone)]
+pub struct Program {
+	instructions: Vec<i32>,
+	pc: usize,
+	input: Vec<i32>,
+	output: Option<i32>,
+	input_ix: usize,
+	interactive: bool,
+}
+
+impl Program {
+	pub fn new(instructions: Vec<i32>) -> Program {
+		Program {
+			instructions: instructions,
+			pc: 0,
+			input: vec![],
+			output: None,
+			input_ix: 0,
+			interactive: false,
+		}
+	}
+
+	pub fn add_input(&mut self, input: i32) {
+		self.input.push(input);
+	}
+
+	pub fn reset_input(&mut self) {
+		self.input_ix = 0;
+	}
+
+	pub fn set_input(&mut self, index: usize, input: i32) {
+		self.input[index] = input;
+	}
+
+	pub fn get_output(&self) -> Option<i32> {
+		self.output
+	}
+}
+
 #[derive(Clone, Copy)]
 pub enum ParameterMode {
 	POSITION = 0,
 	IMMEDIATE = 1,
 	INVALID,
 }
+
 impl std::fmt::Display for ParameterMode {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", if (*self as i32) == 0 { "P" } else { "I" })
@@ -45,17 +85,17 @@ impl Parameter {
 		self.value = value;
 	}
 
-	pub fn get(&mut self, program: &Vec<i32>) -> Option<i32> {
+	pub fn get(&mut self, program: &Program) -> Option<i32> {
 		match self.mode {
-			ParameterMode::POSITION => Some(program[self.value as usize]),
+			ParameterMode::POSITION => Some(program.instructions[self.value as usize]),
 			ParameterMode::IMMEDIATE => Some(self.value),
 			_ => None,
 		}
 	}
 
-	pub fn set(&mut self, program: &mut Vec<i32>, value: i32) {
+	pub fn set(&mut self, program: &mut Program, value: i32) {
 		match self.mode {
-			ParameterMode::POSITION => program[self.value as usize] = value,
+			ParameterMode::POSITION => program.instructions[self.value as usize] = value,
 			_ => {}
 		}
 	}
@@ -116,11 +156,15 @@ impl Instruction {
 		}
 	}
 
+	pub fn is_input(&self) -> bool {
+		self.opcode as i32 == 3
+	}
+
 	pub fn is_quit(&self) -> bool {
 		self.opcode as i32 == 99
 	}
 
-	pub fn execute(mut self, program: &mut Vec<i32>, pc: usize) -> usize {
+	pub fn execute(mut self, program: &mut Program, pc: usize) -> usize {
 		let mut new_pc = pc + self.size;
 
 		match self.opcode {
@@ -149,26 +193,42 @@ impl Instruction {
 				}
 			}
 			Opcode::IN => {
-				io::stdout().write_all(b"INPUT?\n").expect("ERR!");
+				if program.input.len() <= program.input_ix {
+					io::stdout().write_all(b"INPUT?\n").expect("ERR!");
 
-				let mut input = String::new();
-
-				match io::stdin().read_line(&mut input) {
-					Ok(_n) => {
-						&mut self.parameters[0].set(program, input.trim().parse::<i32>().unwrap());
+					let mut input = String::new();
+					match io::stdin().read_line(&mut input) {
+						Ok(_n) => {
+							program
+								.input
+								.push(input.trim().parse::<i32>().expect("Error in input"));
+						}
+						Err(error) => println!("error: {}", error),
 					}
-					Err(error) => println!("error: {}", error),
 				}
+
+				&mut self.parameters[0].set(program, program.input[program.input_ix]);
+				program.input_ix += 1;
 			}
+
 			Opcode::OUT => {
-				writeln!(io::stdout(), "OUT {}", self.parameters[0].get(program).unwrap() ).expect("ERR!");
+				program.output = self.parameters[0].get(program);
+
+				if program.interactive {
+					writeln!(
+						io::stdout(),
+						"OUT {}",
+						program.output.expect("Error, no output set")
+					)
+					.expect("ERR!");
+				}
 			}
 
 			Opcode::JIT => {
 				let a = self.parameters[0].get(program);
 				let b = self.parameters[1].get(program);
 				if a != Some(0) {
-					new_pc = b.unwrap() as usize;
+					new_pc = b.expect("invalid operand b in JIT") as usize;
 				}
 			}
 
@@ -176,7 +236,7 @@ impl Instruction {
 				let a = self.parameters[0].get(program);
 				let b = self.parameters[1].get(program);
 				if a == Some(0) {
-					new_pc = b.unwrap() as usize;
+					new_pc = b.expect("invalid operand b in JIZ") as usize;
 				}
 			}
 
@@ -206,8 +266,8 @@ impl Instruction {
 		new_pc
 	}
 
-	pub fn parse(program: &Vec<i32>, pc: usize) -> Instruction {
-		let instruction = program[pc];
+	pub fn parse(program: &Program, pc: usize) -> Instruction {
+		let instruction = program.instructions[pc];
 
 		let mut result = Instruction::new();
 		result.size = 1;
@@ -230,21 +290,21 @@ impl Instruction {
 				for rank in 0..3 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program[pc + result.size]);
+					p.parse(instruction, rank, program.instructions[pc + result.size]);
 					result.size += 1;
 				}
 			}
 			Opcode::IN | Opcode::OUT => {
 				let p = &mut result.parameters[0];
 
-				p.parse(instruction, 0, program[pc + result.size]);
+				p.parse(instruction, 0, program.instructions[pc + result.size]);
 				result.size += 1;
 			}
 			Opcode::JIT | Opcode::JIZ => {
 				for rank in 0..2 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program[pc + result.size]);
+					p.parse(instruction, rank, program.instructions[pc + result.size]);
 					result.size += 1;
 				}
 			}
@@ -258,15 +318,30 @@ impl Instruction {
 	}
 }
 
-pub fn execute(program: &mut Vec<i32>) {
-	let mut pc = 0;
-	loop {
-		let instruction = Instruction::parse(&program, pc);
-		//println!("{}", instruction);
-		if instruction.is_quit() {
-			break;
+pub fn execute(program: &mut Program) -> bool {
+	let mut quit = false;
+	let mut pause = false;
+
+	while !quit && !pause {
+		let instruction = Instruction::parse(&program, program.pc);
+		// If the program is non-interactive and needs input let it pause
+		if instruction.is_input() && !program.interactive && program.input_ix >= program.input.len() {
+			pause = true;
+		} else if instruction.is_quit() {
+			quit = true;
 		} else {
-			pc = instruction.execute(program, pc);
+			program.pc = instruction.execute(program, program.pc);
 		}
 	}
+
+	!quit
+}
+
+pub fn read(input: &str) -> Program {
+	Program::new(
+		input
+			.split(",")
+			.map(|s| s.parse::<i32>().expect("Invalid instruction in input"))
+			.collect(),
+	)
 }

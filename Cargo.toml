@@ -5,3 +5,4 @@ authors = ["Tom Bulsink <nospam@sorrowed.nl>"]
 edition = "2018"
 
 [dependencies]
+	permute = "0.1.0"
