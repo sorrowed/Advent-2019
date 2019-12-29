@@ -92,7 +92,7 @@ pub fn part2() {
 			amplifier.set_input(1, last_output);
 			
 			run = execute(amplifier);
-			
+
 			last_output = amplifier.get_output().expect("Error, no output produced");
 
 			if !run {break;}
