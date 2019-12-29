@@ -1,29 +1,32 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Read, Write};
 
 #[derive(Clone)]
 pub struct Program {
-	instructions: Vec<i32>,
+	memory: HashMap<usize, i64>,
 	pc: usize,
-	input: Vec<i32>,
-	output: Option<i32>,
+	input: Vec<i64>,
+	output: Option<i64>,
 	input_ix: usize,
-	interactive: bool,
+	pub interactive: bool,
+	relative_base: usize,
 }
 
 impl Program {
-	pub fn new(instructions: Vec<i32>) -> Program {
+	pub fn new(instructions: HashMap<usize, i64>) -> Program {
 		Program {
-			instructions: instructions,
+			memory: instructions,
 			pc: 0,
 			input: vec![],
 			output: None,
 			input_ix: 0,
 			interactive: false,
+			relative_base: 0,
 		}
 	}
 
-	pub fn add_input(&mut self, input: i32) {
+	pub fn add_input(&mut self, input: i64) {
 		self.input.push(input);
 	}
 
@@ -31,11 +34,11 @@ impl Program {
 		self.input_ix = 0;
 	}
 
-	pub fn set_input(&mut self, index: usize, input: i32) {
+	pub fn set_input(&mut self, index: usize, input: i64) {
 		self.input[index] = input;
 	}
 
-	pub fn get_output(&self) -> Option<i32> {
+	pub fn get_output(&self) -> Option<i64> {
 		self.output
 	}
 }
@@ -44,18 +47,19 @@ impl Program {
 pub enum ParameterMode {
 	POSITION = 0,
 	IMMEDIATE = 1,
+	RELATIVE = 2,
 	INVALID,
 }
 
 impl std::fmt::Display for ParameterMode {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", if (*self as i32) == 0 { "P" } else { "I" })
+		write!(f, "{}", if (*self as i64) == 0 { "P" } else { "I" })
 	}
 }
 
 pub struct Parameter {
 	mode: ParameterMode,
-	value: i32,
+	value: i64,
 }
 
 impl std::fmt::Display for Parameter {
@@ -72,30 +76,62 @@ impl Parameter {
 		}
 	}
 
-	pub fn parse(&mut self, instruction: i32, rank: usize, value: i32) {
+	fn relative_address(&self, program: &Program) -> usize {
+		if self.value < 0 {
+			(program.relative_base - self.value.abs() as usize)
+		} else {
+			(program.relative_base + self.value.abs() as usize)
+		}
+	}
+
+	pub fn parse(&mut self, instruction: i64, rank: usize, value: i64) {
 		let mut mode = (instruction / 100) % 1000;
-		mode /= if rank > 0 { 10 * (rank as i32) } else { 1 };
+		mode /= if rank > 0 { 10 * (rank as i64) } else { 1 };
 		mode %= 10;
 
 		self.mode = match mode {
 			0 => ParameterMode::POSITION,
 			1 => ParameterMode::IMMEDIATE,
+			2 => ParameterMode::RELATIVE,
 			_ => ParameterMode::INVALID,
 		};
 		self.value = value;
 	}
 
-	pub fn get(&mut self, program: &Program) -> Option<i32> {
+	pub fn get(&mut self, program: &Program) -> Option<i64> {
 		match self.mode {
-			ParameterMode::POSITION => Some(program.instructions[self.value as usize]),
+			// If the memory location does not exist, return a default 0 value
+			ParameterMode::POSITION => {
+				let key = &(self.value as usize);
+
+				let value = if program.memory.contains_key(key) {
+					program.memory[key]
+				} else {
+					0
+				};
+
+				Some(value)
+			}
 			ParameterMode::IMMEDIATE => Some(self.value),
+			ParameterMode::RELATIVE => {
+				let index = self.relative_address(program);
+
+				Some(program.memory[&index])
+			}
 			_ => None,
 		}
 	}
 
-	pub fn set(&mut self, program: &mut Program, value: i32) {
+	pub fn set(&mut self, program: &mut Program, value: i64) {
 		match self.mode {
-			ParameterMode::POSITION => program.instructions[self.value as usize] = value,
+			ParameterMode::POSITION => {
+				program.memory.insert(self.value as usize, value);
+			}
+			ParameterMode::RELATIVE => {
+				let index = self.relative_address(program);
+
+				program.memory.insert(index, value);
+			}
 			_ => {}
 		}
 	}
@@ -111,6 +147,7 @@ pub enum Opcode {
 	JIZ = 6,
 	LT = 7,
 	EQ = 8,
+	RB = 9,
 	QUIT = 99,
 	INVALID,
 }
@@ -125,6 +162,7 @@ impl std::fmt::Display for Opcode {
 			Opcode::JIZ => write!(f, "JIZ\t"),
 			Opcode::LT => write!(f, "LT\t"),
 			Opcode::EQ => write!(f, "EQ\t"),
+			Opcode::RB => write!(f, "RB\t"),
 			Opcode::QUIT => write!(f, "QUIT"),
 			_ => write!(f, "ERR!\t"),
 		}
@@ -157,11 +195,11 @@ impl Instruction {
 	}
 
 	pub fn is_input(&self) -> bool {
-		self.opcode as i32 == 3
+		self.opcode as i64 == 3
 	}
 
 	pub fn is_quit(&self) -> bool {
-		self.opcode as i32 == 99
+		self.opcode as i64 == 99
 	}
 
 	pub fn execute(mut self, program: &mut Program, pc: usize) -> usize {
@@ -201,7 +239,7 @@ impl Instruction {
 						Ok(_n) => {
 							program
 								.input
-								.push(input.trim().parse::<i32>().expect("Error in input"));
+								.push(input.trim().parse::<i64>().expect("Error in input"));
 						}
 						Err(error) => println!("error: {}", error),
 					}
@@ -260,6 +298,17 @@ impl Instruction {
 				}
 			}
 
+			Opcode::RB => {
+				let a = self.parameters[0]
+					.get(program)
+					.expect("RB requires one operand");
+				program.relative_base = if a < 0 {
+					program.relative_base - a.abs() as usize
+				} else {
+					program.relative_base + a.abs() as usize
+				};
+			}
+
 			_ => {}
 		}
 
@@ -267,7 +316,7 @@ impl Instruction {
 	}
 
 	pub fn parse(program: &Program, pc: usize) -> Instruction {
-		let instruction = program.instructions[pc];
+		let instruction = program.memory[&pc];
 
 		let mut result = Instruction::new();
 		result.size = 1;
@@ -281,6 +330,7 @@ impl Instruction {
 			6 => Opcode::JIZ,
 			7 => Opcode::LT,
 			8 => Opcode::EQ,
+			9 => Opcode::RB,
 			99 => Opcode::QUIT,
 			_ => Opcode::INVALID,
 		};
@@ -290,21 +340,21 @@ impl Instruction {
 				for rank in 0..3 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program.instructions[pc + result.size]);
+					p.parse(instruction, rank, program.memory[&(pc + result.size)]);
 					result.size += 1;
 				}
 			}
-			Opcode::IN | Opcode::OUT => {
+			Opcode::IN | Opcode::OUT | Opcode::RB => {
 				let p = &mut result.parameters[0];
 
-				p.parse(instruction, 0, program.instructions[pc + result.size]);
+				p.parse(instruction, 0, program.memory[&(pc + result.size)]);
 				result.size += 1;
 			}
 			Opcode::JIT | Opcode::JIZ => {
 				for rank in 0..2 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program.instructions[pc + result.size]);
+					p.parse(instruction, rank, program.memory[&(pc + result.size)]);
 					result.size += 1;
 				}
 			}
@@ -338,10 +388,20 @@ pub fn execute(program: &mut Program) -> bool {
 }
 
 pub fn read(input: &str) -> Program {
+	let mut index = 0;
+
 	Program::new(
 		input
 			.split(",")
-			.map(|s| s.parse::<i32>().expect("Invalid instruction in input"))
+			.map(|s| {
+				(
+					{
+						index += 1;
+						index - 1
+					},
+					s.parse::<i64>().expect("Invalid instruction in input"),
+				)
+			})
 			.collect(),
 	)
 }
