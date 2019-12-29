@@ -11,7 +11,7 @@ pub struct Program {
 	input_ix: usize,
 	pub interactive: bool,
 	relative_base: usize,
-	state:i32
+	state: i32,
 }
 
 impl Program {
@@ -24,7 +24,16 @@ impl Program {
 			output: None,
 			input_ix: 0,
 			interactive: false,
-			state : 0,
+			state: 0,
+		}
+	}
+
+	pub fn get(&self, location: usize) -> i64 {
+		// If the memory location does not exist, return a default 0 value
+		if self.memory.contains_key(&location) {
+			self.memory[&location]
+		} else {
+			0
 		}
 	}
 
@@ -50,7 +59,7 @@ impl Program {
 	}
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ParameterMode {
 	POSITION = 0,
 	IMMEDIATE = 1,
@@ -60,7 +69,14 @@ pub enum ParameterMode {
 
 impl std::fmt::Display for ParameterMode {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", if (*self as i64) == 0 { "P" } else { "I" })
+		let mode = match *self {
+			ParameterMode::POSITION => "P",
+			ParameterMode::IMMEDIATE => "I",
+			ParameterMode::RELATIVE => "R",
+			_ => "?",
+		};
+
+		write!(f, "{}", mode)
 	}
 }
 
@@ -92,46 +108,26 @@ impl Parameter {
 	}
 
 	pub fn parse(&mut self, instruction: i64, rank: usize, value: i64) {
+		// Strip off the opcode and then (decimal) shift left up to the digit that corresponds with the parameter rank (0,1,2), ttrip off other parameter nodes
 		let mut mode = (instruction / 100) % 1000;
-		mode /= if rank > 0 { 10 * (rank as i64) } else { 1 };
+		mode /= [1, 10, 100][rank];
 		mode %= 10;
 
 		self.mode = match mode {
 			0 => ParameterMode::POSITION,
 			1 => ParameterMode::IMMEDIATE,
 			2 => ParameterMode::RELATIVE,
-			_ => ParameterMode::INVALID,
+			_ => panic!("Invalid parameter mode {}", mode),
 		};
 		self.value = value;
 	}
 
 	pub fn get(&mut self, program: &Program) -> Option<i64> {
 		match self.mode {
-			// If the memory location does not exist, return a default 0 value
-			ParameterMode::POSITION => {
-				let key = &(self.value as usize);
-
-				let value = if program.memory.contains_key(key) {
-					program.memory[key]
-				} else {
-					0
-				};
-
-				Some(value)
-			}
+			ParameterMode::POSITION => Some(program.get(self.value as usize)),
 			ParameterMode::IMMEDIATE => Some(self.value),
-			ParameterMode::RELATIVE => {
-				let key = &self.relative_address(program);
-
-				let value = if program.memory.contains_key(key) {
-					program.memory[key]
-				} else {
-					0
-				};
-
-				Some(value)
-			}
-			_ => None,
+			ParameterMode::RELATIVE => Some(program.get(self.relative_address(program))),
+			_ => panic!("Invalid instruction, trying to get in unknown parameter mode"),
 		}
 	}
 
@@ -145,12 +141,12 @@ impl Parameter {
 
 				program.memory.insert(index, value);
 			}
-			_ => {}
+			_ => panic!("Invalid instruction, trying to set a DIRECT parameter"),
 		}
 	}
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Opcode {
 	ADD = 1,
 	MUL = 2,
@@ -183,6 +179,7 @@ impl std::fmt::Display for Opcode {
 }
 
 pub struct Instruction {
+	pub source: i64,
 	pub opcode: Opcode,
 	pub parameters: [Parameter; 3],
 	pub size: usize,
@@ -199,8 +196,9 @@ impl std::fmt::Display for Instruction {
 }
 
 impl Instruction {
-	pub fn new() -> Instruction {
+	pub fn new(source: i64) -> Instruction {
 		Instruction {
+			source: source,
 			opcode: Opcode::INVALID,
 			parameters: [Parameter::new(), Parameter::new(), Parameter::new()],
 			size: 0,
@@ -228,7 +226,7 @@ impl Instruction {
 					(Some(a), Some(b)) => {
 						c.set(program, a + b);
 					}
-					_ => {panic!("ADD requires three operands")}
+					_ => panic!("ADD requires three operands"),
 				}
 			}
 			Opcode::MUL => {
@@ -240,7 +238,7 @@ impl Instruction {
 					(Some(a), Some(b)) => {
 						c.set(program, a * b);
 					}
-					_ => {panic!("MUL requires three operands")}
+					_ => panic!("MUL requires three operands"),
 				}
 			}
 			Opcode::IN => {
@@ -322,7 +320,9 @@ impl Instruction {
 				};
 			}
 
-			_ => {}
+			_ => {
+				panic!("Unknown opcode {}", self.opcode);
+			}
 		}
 
 		program.pc = new_pc
@@ -331,7 +331,7 @@ impl Instruction {
 	pub fn parse(program: &Program) -> Instruction {
 		let instruction = program.memory[&program.pc];
 
-		let mut result = Instruction::new();
+		let mut result = Instruction::new(instruction);
 		result.size = 1;
 
 		result.opcode = match instruction % 100 {
@@ -345,7 +345,7 @@ impl Instruction {
 			8 => Opcode::EQ,
 			9 => Opcode::RB,
 			99 => Opcode::QUIT,
-			_ => Opcode::INVALID,
+			_ => panic!("Unknown opcode in instruction {}", instruction )
 		};
 
 		match result.opcode {
@@ -353,8 +353,16 @@ impl Instruction {
 				for rank in 0..3 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program.memory[&(program.pc + result.size)]);
+					p.parse(
+						instruction,
+						rank,
+						program.memory[&(program.pc + result.size)],
+					);
 					result.size += 1;
+				}
+
+				if result.parameters[2].mode == ParameterMode::IMMEDIATE {
+					panic!("Instruction parse failure ({}): ADD,MUL,LT and EQ must write in POSITION or RELATIVE mode", instruction);
 				}
 			}
 			Opcode::IN | Opcode::OUT | Opcode::RB => {
@@ -367,14 +375,20 @@ impl Instruction {
 				for rank in 0..2 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program.memory[&(program.pc + result.size)]);
+					p.parse(
+						instruction,
+						rank,
+						program.memory[&(program.pc + result.size)],
+					);
 					result.size += 1;
 				}
 			}
 			Opcode::QUIT => {
 				result.size = std::usize::MAX;
 			}
-			_ => {}
+			_ => {
+				panic!("Unknown opcode {}", result.opcode);
+			}
 		}
 
 		result
