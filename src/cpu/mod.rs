@@ -11,6 +11,7 @@ pub struct Program {
 	input_ix: usize,
 	pub interactive: bool,
 	relative_base: usize,
+	state:i32
 }
 
 impl Program {
@@ -18,11 +19,12 @@ impl Program {
 		Program {
 			memory: instructions,
 			pc: 0,
+			relative_base: 0,
 			input: vec![],
 			output: None,
 			input_ix: 0,
 			interactive: false,
-			relative_base: 0,
+			state : 0,
 		}
 	}
 
@@ -31,11 +33,16 @@ impl Program {
 	}
 
 	pub fn reset_input(&mut self) {
+		self.input.clear();
 		self.input_ix = 0;
 	}
 
-	pub fn set_input(&mut self, index: usize, input: i64) {
-		self.input[index] = input;
+	pub fn is_waiting(&self) -> bool {
+		!self.interactive && self.input_ix >= self.input.len()
+	}
+
+	pub fn is_finished(&self) -> bool {
+		self.state != 0
 	}
 
 	pub fn get_output(&self) -> Option<i64> {
@@ -114,9 +121,15 @@ impl Parameter {
 			}
 			ParameterMode::IMMEDIATE => Some(self.value),
 			ParameterMode::RELATIVE => {
-				let index = self.relative_address(program);
+				let key = &self.relative_address(program);
 
-				Some(program.memory[&index])
+				let value = if program.memory.contains_key(key) {
+					program.memory[key]
+				} else {
+					0
+				};
+
+				Some(value)
 			}
 			_ => None,
 		}
@@ -202,8 +215,8 @@ impl Instruction {
 		self.opcode as i64 == 99
 	}
 
-	pub fn execute(mut self, program: &mut Program, pc: usize) -> usize {
-		let mut new_pc = pc + self.size;
+	pub fn execute(mut self, program: &mut Program) {
+		let mut new_pc = program.pc + self.size;
 
 		match self.opcode {
 			Opcode::ADD => {
@@ -215,7 +228,7 @@ impl Instruction {
 					(Some(a), Some(b)) => {
 						c.set(program, a + b);
 					}
-					_ => {}
+					_ => {panic!("ADD requires three operands")}
 				}
 			}
 			Opcode::MUL => {
@@ -227,7 +240,7 @@ impl Instruction {
 					(Some(a), Some(b)) => {
 						c.set(program, a * b);
 					}
-					_ => {}
+					_ => {panic!("MUL requires three operands")}
 				}
 			}
 			Opcode::IN => {
@@ -312,11 +325,11 @@ impl Instruction {
 			_ => {}
 		}
 
-		new_pc
+		program.pc = new_pc
 	}
 
-	pub fn parse(program: &Program, pc: usize) -> Instruction {
-		let instruction = program.memory[&pc];
+	pub fn parse(program: &Program) -> Instruction {
+		let instruction = program.memory[&program.pc];
 
 		let mut result = Instruction::new();
 		result.size = 1;
@@ -340,21 +353,21 @@ impl Instruction {
 				for rank in 0..3 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program.memory[&(pc + result.size)]);
+					p.parse(instruction, rank, program.memory[&(program.pc + result.size)]);
 					result.size += 1;
 				}
 			}
 			Opcode::IN | Opcode::OUT | Opcode::RB => {
 				let p = &mut result.parameters[0];
 
-				p.parse(instruction, 0, program.memory[&(pc + result.size)]);
+				p.parse(instruction, 0, program.memory[&(program.pc + result.size)]);
 				result.size += 1;
 			}
 			Opcode::JIT | Opcode::JIZ => {
 				for rank in 0..2 {
 					let p = &mut result.parameters[rank];
 
-					p.parse(instruction, rank, program.memory[&(pc + result.size)]);
+					p.parse(instruction, rank, program.memory[&(program.pc + result.size)]);
 					result.size += 1;
 				}
 			}
@@ -369,22 +382,19 @@ impl Instruction {
 }
 
 pub fn execute(program: &mut Program) -> bool {
-	let mut quit = false;
-	let mut pause = false;
-
-	while !quit && !pause {
-		let instruction = Instruction::parse(&program, program.pc);
+	while program.state == 0 {
+		let instruction = Instruction::parse(&program);
 		// If the program is non-interactive and needs input let it pause
-		if instruction.is_input() && !program.interactive && program.input_ix >= program.input.len() {
-			pause = true;
-		} else if instruction.is_quit() {
-			quit = true;
+		if instruction.is_quit() {
+			program.state = 1;
+		} else if instruction.is_input() && program.is_waiting() {
+			break;
 		} else {
-			program.pc = instruction.execute(program, program.pc);
+			instruction.execute(program);
 		}
 	}
 
-	!quit
+	program.state == 0
 }
 
 pub fn read(input: &str) -> Program {

@@ -5,11 +5,11 @@ fn input() -> &'static str {
 	"3,8,1001,8,10,8,105,1,0,0,21,42,67,88,105,114,195,276,357,438,99999,3,9,101,4,9,9,102,3,9,9,1001,9,2,9,102,4,9,9,4,9,99,3,9,1001,9,4,9,102,4,9,9,101,2,9,9,1002,9,5,9,1001,9,2,9,4,9,99,3,9,1001,9,4,9,1002,9,4,9,101,2,9,9,1002,9,2,9,4,9,99,3,9,101,4,9,9,102,3,9,9,1001,9,5,9,4,9,99,3,9,102,5,9,9,4,9,99,3,9,102,2,9,9,4,9,3,9,101,1,9,9,4,9,3,9,101,2,9,9,4,9,3,9,1001,9,2,9,4,9,3,9,102,2,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,102,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,101,2,9,9,4,9,99,3,9,1002,9,2,9,4,9,3,9,1001,9,2,9,4,9,3,9,102,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,1,9,9,4,9,3,9,101,1,9,9,4,9,3,9,1002,9,2,9,4,9,99,3,9,102,2,9,9,4,9,3,9,101,1,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,3,9,102,2,9,9,4,9,3,9,101,2,9,9,4,9,3,9,102,2,9,9,4,9,3,9,1001,9,2,9,4,9,3,9,1001,9,1,9,4,9,99,3,9,1002,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,102,2,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,1002,9,2,9,4,9,3,9,1001,9,2,9,4,9,99,3,9,1002,9,2,9,4,9,3,9,101,1,9,9,4,9,3,9,1002,9,2,9,4,9,3,9,102,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,1002,9,2,9,4,9,3,9,1001,9,1,9,4,9,3,9,101,2,9,9,4,9,3,9,1001,9,1,9,4,9,3,9,1002,9,2,9,4,9,99"
 }
 
-fn find_max_output(input: &str, phase_settings: Vec<i32>) -> i32 {
+fn find_max_output(input: &str, phase_settings: Vec<i64>) -> i64 {
 	// Clean program state
 	let program = read(input);
 
-	let mut max_output = std::i32::MIN;
+	let mut max_output = std::i64::MIN;
 
 	// Phase input permutations for phase settings
 	let phase_inputs = permute::permute(phase_settings);
@@ -17,6 +17,7 @@ fn find_max_output(input: &str, phase_settings: Vec<i32>) -> i32 {
 	for phase_input in phase_inputs {
 		// Initialize and execute first phase, set input signal to 0.
 		let mut phase = program.clone();
+		phase.interactive = false;
 
 		phase.add_input(phase_input[0]);
 		phase.add_input(0);
@@ -25,6 +26,8 @@ fn find_max_output(input: &str, phase_settings: Vec<i32>) -> i32 {
 		// Execute the rest of the phases, set input signal to output of previous phase.
 		for ix in 1..phase_input.len() {
 			let mut next_phase = program.clone();
+			next_phase.interactive = false;
+
 			next_phase.add_input(phase_input[ix]);
 			next_phase.add_input(phase.get_output().expect("Error, No output for phase"));
 			execute(&mut next_phase);
@@ -60,44 +63,63 @@ pub fn part1() {
 }
 
 pub fn part2() {
-	let input =
-		"3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5";
+	// let input =
+	// 	"3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5";
 
-	let program = read(input);
+	let program = read(input());
+	let phase_inputs = permute::permute(vec![9, 8, 7, 6, 5]);
 
-	let mut amplifiers = [
-		program.clone(),
-		program.clone(),
-		program.clone(),
-		program.clone(),
-		program.clone(),
-	];
+	let mut max_output = std::i64::MIN;
 
-	let phase_input = vec![9, 8, 7, 6, 5];
+	// Try all permutations of the phase settings
+	for phase_input in phase_inputs {
+		// Create programs for each amplifier
+		let mut amplifiers = [
+			program.clone(),
+			program.clone(),
+			program.clone(),
+			program.clone(),
+			program.clone(),
+		];
 
-	// Prepare all amplifier programs with 2 input signals the first being the phase input setting
-	for i in 0..amplifiers.len() {
-		let amplifier = &mut amplifiers[i];
-		amplifier.add_input(phase_input[i]);
-		amplifier.add_input(0);
-	}
-
-	let mut last_output = 0;
-
-	let mut run = true;
-	while run {
+		// Prepare all amplifier programs with 1 input signal, the phase input setting
 		for i in 0..amplifiers.len() {
 			let amplifier = &mut amplifiers[i];
-			amplifier.reset_input();
-			amplifier.set_input(1, last_output);
-			
-			run = execute(amplifier);
-
-			last_output = amplifier.get_output().expect("Error, no output produced");
-
-			if !run {break;}
+			amplifier.interactive = false;
+			amplifier.add_input(phase_input[i]);
 		}
+
+		// Execute the amplifier programs until they are all finished
+		let mut last_output = 0;
+		loop {
+			for i in 0..amplifiers.len() {
+				
+				let amplifier = &mut amplifiers[i];
+
+				amplifier.add_input(last_output); // Add the output from the previous amplifier as input signal
+				execute(amplifier);
+				
+				// At this point the program is either finished or paused, waiting for input
+				// We now reset the input queue, any input needed on subsequent runs is added from the output 
+				// of the previous amplifier program
+				amplifier.reset_input(); 
+
+				// Store the output so we can use it as input for the next program
+				last_output = amplifier.get_output().expect("Error, no output produced");
+			}
+
+			if amplifiers.iter().all(|p| p.is_finished()) {
+				break;
+			}
+		}
+
+		max_output = std::cmp::max(
+			max_output,
+			amplifiers[4]
+				.get_output()
+				.expect("Error, amplifier E has no output"),
+		);
 	}
 
-	println!("Output produced by amplifier E: {}",amplifiers[4].get_output().expect("Error, amplifier E has no output"));
+	println!("Maximum output produced by amplifier E: {}", max_output);
 }
