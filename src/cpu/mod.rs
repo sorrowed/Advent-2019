@@ -7,7 +7,7 @@ pub struct Program {
 	memory: HashMap<usize, i64>,
 	pc: usize,
 	input: Vec<i64>,
-	output: Option<i64>,
+	output: Vec<i64>,
 	input_ix: usize,
 	pub interactive: bool,
 	relative_base: usize,
@@ -21,7 +21,7 @@ impl Program {
 			pc: 0,
 			relative_base: 0,
 			input: vec![],
-			output: None,
+			output: vec![],
 			input_ix: 0,
 			interactive: false,
 			state: 0,
@@ -41,9 +41,10 @@ impl Program {
 		self.input.push(input);
 	}
 
-	pub fn reset_input(&mut self) {
+	pub fn flush(&mut self) {
 		self.input.clear();
 		self.input_ix = 0;
+		self.output.clear();
 	}
 
 	pub fn is_waiting(&self) -> bool {
@@ -54,8 +55,12 @@ impl Program {
 		self.state != 0
 	}
 
-	pub fn get_output(&self) -> Option<i64> {
-		self.output
+	pub fn get_output(&self, index: usize) -> Option<i64> {
+		if self.output.len() > index {
+			Some(self.output[index])
+		} else {
+			None
+		}
 	}
 }
 
@@ -261,13 +266,16 @@ impl Instruction {
 			}
 
 			Opcode::OUT => {
-				program.output = self.parameters[0].get(program);
+
+				let output = self.parameters[0].get(program).expect("Error, no output set");
+
+				program.output.push(output);
 
 				if program.interactive {
 					writeln!(
 						io::stdout(),
 						"OUT {}",
-						program.output.expect("Error, no output set")
+						output
 					)
 					.expect("ERR!");
 				}
@@ -345,7 +353,7 @@ impl Instruction {
 			8 => Opcode::EQ,
 			9 => Opcode::RB,
 			99 => Opcode::QUIT,
-			_ => panic!("Unknown opcode in instruction {}", instruction )
+			_ => panic!("Unknown opcode in instruction {}", instruction),
 		};
 
 		match result.opcode {
