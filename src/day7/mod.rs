@@ -29,7 +29,7 @@ fn find_max_output(input: &str, phase_settings: Vec<i64>) -> i64 {
 			next_phase.interactive = false;
 
 			next_phase.add_input(phase_input[ix]);
-			next_phase.add_input(phase.get_output().expect("Error, No output for phase"));
+			next_phase.add_input(phase.get_output(0).expect("Error, No output for phase"));
 			execute(&mut next_phase);
 
 			// Remember for next phase or final output
@@ -38,7 +38,7 @@ fn find_max_output(input: &str, phase_settings: Vec<i64>) -> i64 {
 
 		max_output = std::cmp::max(
 			max_output,
-			phase.get_output().expect("Error, no program output"),
+			phase.get_output(0).expect("Error, no program output"),
 		);
 	}
 
@@ -93,19 +93,18 @@ pub fn part2() {
 		let mut last_output = 0;
 		loop {
 			for i in 0..amplifiers.len() {
-				
 				let amplifier = &mut amplifiers[i];
 
 				amplifier.add_input(last_output); // Add the output from the previous amplifier as input signal
 				execute(amplifier);
-				
-				// At this point the program is either finished or paused, waiting for input
-				// We now reset the input queue, any input needed on subsequent runs is added from the output 
-				// of the previous amplifier program
-				amplifier.reset_input(); 
 
 				// Store the output so we can use it as input for the next program
-				last_output = amplifier.get_output().expect("Error, no output produced");
+				last_output = amplifier.get_output(0).expect("Error, no output produced");
+
+				// At this point the program is either finished or paused, waiting for input
+				// We now reset the input queue, any input needed on subsequent runs is added from the output
+				// of the previous amplifier program
+				amplifier.flush();
 			}
 
 			if amplifiers.iter().all(|p| p.is_finished()) {
@@ -113,12 +112,8 @@ pub fn part2() {
 			}
 		}
 
-		max_output = std::cmp::max(
-			max_output,
-			amplifiers[4]
-				.get_output()
-				.expect("Error, amplifier E has no output"),
-		);
+		// We can use last_output here because that will always be the output of amplifier E at this point
+		max_output = std::cmp::max(max_output, last_output);
 	}
 
 	println!("Maximum output produced by amplifier E: {}", max_output);

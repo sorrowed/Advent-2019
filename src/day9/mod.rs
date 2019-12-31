@@ -16,7 +16,7 @@ pub fn part1() {
 	let mut program = read(&input);
 	program.add_input(1);
 	execute(&mut program);
-	println!("BOOST test mode output: {}", program.get_output().expect("Error, BOOST program TEST mode produced no output"))
+	println!("BOOST test mode output: {}", program.get_output(0).expect("Error, BOOST program TEST mode produced no output"))
 }
 
 pub fn part2() {
@@ -25,5 +25,5 @@ pub fn part2() {
 	let mut program = read(&input);
 	program.add_input(2);
 	execute(&mut program);
-	println!("BOOST sensor mode output: {}", program.get_output().expect("Error, BOOST program SENSOR mode produced no output"))
+	println!("BOOST sensor mode output: {}", program.get_output(0).expect("Error, BOOST program SENSOR mode produced no output"))
 }

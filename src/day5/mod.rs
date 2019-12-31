@@ -9,11 +9,11 @@ pub fn test() {
 
 	let mut program = read(source);
 
-	let instruction = Instruction::parse(&program, 0);
+	let instruction = Instruction::parse(&program);
 
 	println!("{}", instruction);
 
-	instruction.execute(&mut program, 0);
+	instruction.execute(&mut program);
 }
 
 pub fn test_compare() {

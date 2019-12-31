@@ -53,11 +53,11 @@ fn input() -> Vec<String> {
 }
 
 struct Asteroid {
-	pub location: Coordinate,
+	pub location: Vector,
 }
 
 impl Asteroid {
-	pub fn new(location: Coordinate) -> Asteroid {
+	pub fn new(location: Vector) -> Asteroid {
 		Asteroid { location: location }
 	}
 }
@@ -75,9 +75,10 @@ fn parse_asteroids(input: &Vec<String>) -> Vec<Asteroid> {
 		let line = &input[y].as_bytes();
 		for x in 0..line.len() {
 			if line[x] == '#' as u8 {
-				asteroids.push(Asteroid::new(Coordinate {
+				asteroids.push(Asteroid::new(Vector {
 					x: x as i32,
 					y: y as i32,
+					z:0
 				}));
 			}
 		}
@@ -119,8 +120,8 @@ fn generate_paths(source: &Asteroid, targets: &Vec<Asteroid>) -> Vec<Path> {
 	This creates a vector of tuples which contains for each location a collection of Paths to other asteroids
 	Asteroids that are blocked by other asteroids (same angle, closer by) are not included in the latter collection
 */
-fn process_asteroids(asteroids: &Vec<Asteroid>) -> Vec<(Coordinate, Vec<Path>)> {
-	let mut result = Vec::<(Coordinate, Vec<Path>)>::new();
+fn process_asteroids(asteroids: &Vec<Asteroid>) -> Vec<(Vector, Vec<Path>)> {
+	let mut result = Vec::<(Vector, Vec<Path>)>::new();
 
 	for source in asteroids {
 		let paths = generate_paths(source, asteroids);
@@ -198,7 +199,7 @@ pub fn part2() {
 	// Place the laser at location obtained from part 1
 	let mut galaxy = parse_asteroids(&input());
 	let laser = Asteroid {
-		location: Coordinate { x: 26, y: 36 },
+		location: Vector { x: 26, y: 36, z:0 },
 	};
 
 	let mut destroyed = 0;

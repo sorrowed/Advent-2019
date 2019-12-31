@@ -1,10 +1,10 @@
 use crate::common;
 
-fn fuel_required(mass: i32) -> i32 {
-	(mass / 3) as i32 - 2
+fn fuel_required(mass: i64) -> i64 {
+	(mass / 3) as i64 - 2
 }
 
-fn fuel_required_including_fuel(mass: i32) -> i32 {
+fn fuel_required_including_fuel(mass: i64) -> i64 {
 	let fuel = fuel_required(mass);
 
 	if fuel <= 0 {
@@ -15,7 +15,7 @@ fn fuel_required_including_fuel(mass: i32) -> i32 {
 }
 
 pub fn part1() {
-	let input = common::import("../../src/day1/input.txt");
+	let input = common::import("src/day1/input.txt");
 	let mut sum = 0;
 	for mass in input {
 		sum += fuel_required(mass);
@@ -24,7 +24,7 @@ pub fn part1() {
 }
 
 pub fn part2() {
-	let input = common::import("../../src/day1/input.txt");
+	let input = common::import("src/day1/input.txt");
 	let mut sum = 0;
 	for mass in input {
 		sum += fuel_required_including_fuel(fuel_required(mass));

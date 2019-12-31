@@ -24,15 +24,15 @@ impl Default for Color {
 }
 
 struct Robot {
-	location: Coordinate,
+	location: Vector,
 	direction: Direction,
-	world: HashMap<Coordinate, Color>,
+	world: HashMap<Vector, Color>,
 }
 
 impl Robot {
 	pub fn new() -> Robot {
 		Robot {
-			location: Coordinate { x: 0, y: 0 },
+			location: Vector { x: 0, y: 0, z: 0 },
 			direction: Direction::UP,
 			world: HashMap::<_, _>::new(),
 		}
@@ -81,7 +81,7 @@ impl Robot {
 		}
 	}
 
-	pub fn color(&self, location: &Coordinate) -> Color {
+	pub fn color(&self, location: &Vector) -> Color {
 		if self.world.contains_key(location) {
 			self.world[location]
 		} else {
@@ -96,15 +96,23 @@ impl Robot {
 	/*
 		returns the top left and bottom right corner of the map so far
 	*/
-	pub fn extends(&self) -> (Coordinate, Coordinate) {
+	pub fn extends(&self) -> (Vector, Vector) {
 		let x_min = self.world.keys().min_by(|a, b| a.x.cmp(&b.x)).unwrap().x;
 		let x_max = self.world.keys().max_by(|a, b| a.x.cmp(&b.x)).unwrap().x;
 		let y_min = self.world.keys().min_by(|a, b| a.y.cmp(&b.y)).unwrap().y;
 		let y_max = self.world.keys().max_by(|a, b| a.y.cmp(&b.y)).unwrap().y;
 
 		(
-			Coordinate { x: x_min, y: y_min },
-			Coordinate { x: x_max, y: y_max },
+			Vector {
+				x: x_min,
+				y: y_min,
+				z: 0,
+			},
+			Vector {
+				x: x_max,
+				y: y_max,
+				z: 0,
+			},
 		)
 	}
 
@@ -125,7 +133,7 @@ fn draw_trail(robot: &Robot) {
 		for x in extends.0.x - 1..=extends.1.x + 1 {
 			print!(
 				"{}",
-				if robot.color(&Coordinate { x: x, y: y }) == Color::WHITE {
+				if robot.color(&Vector { x: x, y: y, z: 0 }) == Color::WHITE {
 					'#'
 				} else {
 					'.'
@@ -152,11 +160,7 @@ pub fn test() {
 	println!("Painted {} panels on the test hull", robot.painted());
 }
 
-pub fn part1() {
-	let mut program = read(&import_lines("src/day11/input.txt"));
-
-	let mut robot = Robot::new();
-
+fn run_robot_program(robot: &mut Robot, program: &mut Program) {
 	while !program.is_finished() {
 		if program.is_waiting() {
 			program.flush();
@@ -166,7 +170,7 @@ pub fn part1() {
 				1
 			});
 		}
-		execute(&mut program);
+		execute(program);
 
 		robot.next(
 			if program.get_output(0).expect("No output") == 0 {
@@ -181,6 +185,14 @@ pub fn part1() {
 			},
 		);
 	}
+}
+
+pub fn part1() {
+	let mut program = read(&import_lines("src/day11/input.txt"));
+
+	let mut robot = Robot::new();
+
+	run_robot_program(&mut robot, &mut program);
 
 	draw_trail(&robot);
 
@@ -193,30 +205,7 @@ pub fn part2() {
 	let mut robot = Robot::new();
 	robot.paint(Color::WHITE);
 
-	while !program.is_finished() {
-		if program.is_waiting() {
-			program.flush();
-			program.add_input(if robot.current() == Color::BLACK {
-				0
-			} else {
-				1
-			});
-		}
-		execute(&mut program);
-
-		robot.next(
-			if program.get_output(0).expect("No output") == 0 {
-				Color::BLACK
-			} else {
-				Color::WHITE
-			},
-			if program.get_output(1).expect("No output") == 0 {
-				Direction::LEFT
-			} else {
-				Direction::RIGHT
-			},
-		);
-	}
+	run_robot_program(&mut robot, &mut program);
 
 	draw_trail(&robot);
 

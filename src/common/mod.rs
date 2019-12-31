@@ -3,27 +3,28 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 #[derive(Clone,Hash)]
-pub struct Coordinate {
+pub struct Vector {
 	pub x: i32,
 	pub y: i32,
+	pub z: i32,
 }
 
-impl std::fmt::Display for Coordinate {
+impl std::fmt::Display for Vector {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "({},{})", self.x, self.y)
+		write!(f, "({},{},{})", self.x, self.y, self.z)
 	}
 }
 
-impl std::cmp::PartialEq for Coordinate {
-	fn eq(&self, other: &Coordinate) -> bool {
-		return self.x == other.x && self.y == other.y;
+impl std::cmp::PartialEq for Vector {
+	fn eq(&self, other: &Vector) -> bool {
+		self.x == other.x && self.y == other.y && self.z == other.z
 	}
 }
 
-impl std::cmp::Eq for Coordinate {}
+impl std::cmp::Eq for Vector {}
 
-impl Coordinate {
-	pub fn path(&self, other: &Coordinate) -> Path {
+impl Vector {
+	pub fn path(&self, other: &Vector) -> Path {
 		let x = (other.x - self.x) as f32;
 		let y = (other.y - self.y) as f32;
 
@@ -36,7 +37,7 @@ impl Coordinate {
 }
 
 pub struct Path {
-	pub target: Coordinate,
+	pub target: Vector,
 	pub angle: f32,
 	pub distance: f32,
 }
