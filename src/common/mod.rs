@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-#[derive(Clone,Hash)]
+#[derive(Clone, Hash)]
 pub struct Vector {
 	pub x: i32,
 	pub y: i32,
@@ -33,6 +33,10 @@ impl Vector {
 			angle: angle_in_degrees(y.atan2(x)),
 			distance: x.hypot(y),
 		}
+	}
+
+	pub fn magnitude(&self) -> i32 {
+		self.x.abs() + self.y.abs() + self.z.abs()
 	}
 }
 
@@ -76,7 +80,6 @@ fn angle_in_degrees(angle: f32) -> f32 {
 	// And offset with 90 degrees to make up/north 0 degrees, clamp to [0 ~ 360> degrees
 	(r + 90f32) % 360f32
 }
-
 
 pub fn import(name: &str) -> Vec<i64> {
 	let file = File::open(name).unwrap();
