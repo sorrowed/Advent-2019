@@ -24,6 +24,10 @@ impl std::cmp::PartialEq for Vector {
 impl std::cmp::Eq for Vector {}
 
 impl Vector {
+	pub fn new(x: i32, y: i32, z: i32) -> Vector {
+		Vector { x: x, y: y, z: z }
+	}
+
 	pub fn path(&self, other: &Vector) -> Path {
 		let x = (other.x - self.x) as f32;
 		let y = (other.y - self.y) as f32;
