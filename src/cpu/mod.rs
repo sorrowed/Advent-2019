@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Read, Write};
 
+pub type CpuWidth = i64;
+
 #[derive(Clone)]
 pub struct Program {
-	memory: HashMap<usize, i64>,
+	memory: HashMap<usize, CpuWidth>,
 	pc: usize,
-	input: Vec<i64>,
-	output: Vec<i64>,
+	input: Vec<CpuWidth>,
+	pub output: Vec<CpuWidth>,
 	input_ix: usize,
 	pub interactive: bool,
 	relative_base: usize,
@@ -15,7 +17,7 @@ pub struct Program {
 }
 
 impl Program {
-	pub fn new(instructions: HashMap<usize, i64>) -> Program {
+	pub fn new(instructions: HashMap<usize, CpuWidth>) -> Program {
 		Program {
 			memory: instructions,
 			pc: 0,
@@ -28,7 +30,7 @@ impl Program {
 		}
 	}
 
-	pub fn get(&self, location: usize) -> i64 {
+	pub fn get(&self, location: usize) -> CpuWidth {
 		// If the memory location does not exist, return a default 0 value
 		if self.memory.contains_key(&location) {
 			self.memory[&location]
@@ -37,7 +39,11 @@ impl Program {
 		}
 	}
 
-	pub fn add_input(&mut self, input: i64) {
+	pub fn set(&mut self, index: usize, value: CpuWidth) {
+		self.memory.insert(index, value);
+	}
+
+	pub fn add_input(&mut self, input: CpuWidth) {
 		self.input.push(input);
 	}
 
@@ -55,7 +61,7 @@ impl Program {
 		self.state != 0
 	}
 
-	pub fn get_output(&self, index: usize) -> Option<i64> {
+	pub fn get_output(&self, index: usize) -> Option<CpuWidth> {
 		if self.output.len() > index {
 			Some(self.output[index])
 		} else {
@@ -87,7 +93,7 @@ impl std::fmt::Display for ParameterMode {
 
 pub struct Parameter {
 	mode: ParameterMode,
-	value: i64,
+	value: CpuWidth,
 }
 
 impl std::fmt::Display for Parameter {
@@ -112,7 +118,7 @@ impl Parameter {
 		}
 	}
 
-	pub fn parse(&mut self, instruction: i64, rank: usize, value: i64) {
+	pub fn parse(&mut self, instruction: CpuWidth, rank: usize, value: CpuWidth) {
 		// Strip off the opcode and then (decimal) shift left up to the digit that corresponds with the parameter rank (0,1,2), ttrip off other parameter nodes
 		let mut mode = (instruction / 100) % 1000;
 		mode /= [1, 10, 100][rank];
@@ -127,7 +133,7 @@ impl Parameter {
 		self.value = value;
 	}
 
-	pub fn get(&mut self, program: &Program) -> Option<i64> {
+	pub fn get(&mut self, program: &Program) -> Option<CpuWidth> {
 		match self.mode {
 			ParameterMode::POSITION => Some(program.get(self.value as usize)),
 			ParameterMode::IMMEDIATE => Some(self.value),
@@ -136,7 +142,7 @@ impl Parameter {
 		}
 	}
 
-	pub fn set(&mut self, program: &mut Program, value: i64) {
+	pub fn set(&mut self, program: &mut Program, value: CpuWidth) {
 		match self.mode {
 			ParameterMode::POSITION => {
 				program.memory.insert(self.value as usize, value);
@@ -184,7 +190,7 @@ impl std::fmt::Display for Opcode {
 }
 
 pub struct Instruction {
-	pub source: i64,
+	pub source: CpuWidth,
 	pub opcode: Opcode,
 	pub parameters: [Parameter; 3],
 	pub size: usize,
@@ -201,7 +207,7 @@ impl std::fmt::Display for Instruction {
 }
 
 impl Instruction {
-	pub fn new(source: i64) -> Instruction {
+	pub fn new(source: CpuWidth) -> Instruction {
 		Instruction {
 			source: source,
 			opcode: Opcode::INVALID,
@@ -211,11 +217,11 @@ impl Instruction {
 	}
 
 	pub fn is_input(&self) -> bool {
-		self.opcode as i64 == 3
+		self.opcode as CpuWidth == 3
 	}
 
 	pub fn is_quit(&self) -> bool {
-		self.opcode as i64 == 99
+		self.opcode as CpuWidth == 99
 	}
 
 	pub fn execute(mut self, program: &mut Program) {
@@ -255,7 +261,7 @@ impl Instruction {
 						Ok(_n) => {
 							program
 								.input
-								.push(input.trim().parse::<i64>().expect("Error in input"));
+								.push(input.trim().parse::<CpuWidth>().expect("Error in input"));
 						}
 						Err(error) => println!("error: {}", error),
 					}
@@ -266,18 +272,14 @@ impl Instruction {
 			}
 
 			Opcode::OUT => {
-
-				let output = self.parameters[0].get(program).expect("Error, no output set");
+				let output = self.parameters[0]
+					.get(program)
+					.expect("Error, no output set");
 
 				program.output.push(output);
 
 				if program.interactive {
-					writeln!(
-						io::stdout(),
-						"OUT {}",
-						output
-					)
-					.expect("ERR!");
+					writeln!(io::stdout(), "OUT {}", output).expect("ERR!");
 				}
 			}
 
@@ -431,7 +433,7 @@ pub fn read(input: &str) -> Program {
 						index += 1;
 						index - 1
 					},
-					s.parse::<i64>().expect("Invalid instruction in input"),
+					s.parse::<CpuWidth>().expect("Invalid instruction in input"),
 				)
 			})
 			.collect(),

@@ -120,7 +120,6 @@ fn moons() -> (Moon, Moon, Moon, Moon) {
 	)
 }
 
-
 pub fn test() {
 	let mut io = Moon::new(MoonId::IO, -1, 0, 2);
 	let mut europa = Moon::new(MoonId::EUROPA, 2, -10, -7);
