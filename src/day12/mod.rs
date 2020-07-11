@@ -89,7 +89,7 @@ fn simulate(
 }
 
 /*
-	Find greatest common divisor of a and busing Euclid's algorithm
+	Find greatest common divisor of a and b using Euclid's algorithm
 */
 fn gcd(a: i64, b: i64) -> i64 {
     let (mut x, mut y) = if a > b { (a, b) } else { (b, a) };

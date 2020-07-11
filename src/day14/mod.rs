@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::common::*;
-use math;
 
 type ReactionStorage = HashMap<String, Reaction>;
 
@@ -71,7 +70,7 @@ impl Reaction {
      *   and returns a new reaction with the new aamunts
      */
     pub fn match_target_amount(self, amount: i64) -> Reaction {
-        let mut result = self.clone();
+        let mut result = self.to_owned();
 
         while result.target_chemical.amount < amount {
             result.target_chemical.amount += self.target_chemical.amount;
@@ -88,7 +87,7 @@ fn parse_reactions(input: &str) -> ReactionStorage {
         .split('\n')
         .map(|token| {
             let r = Reaction::parse(token);
-            (r.target_chemical.name.clone(), r)
+            (r.target_chemical.name.to_owned(), r)
         })
         .collect::<ReactionStorage>()
 }
@@ -129,7 +128,7 @@ fn process(input: &str, fuel_amount: i64) -> i64 {
             } else {
                 // Lookup any surplus chemical we might still have in storage
                 let stored_chemical_amount = chemical_storage
-                    .entry(target_chemical.0.clone())
+                    .entry(target_chemical.0.to_owned())
                     .or_insert(0);
 
                 // If that is enough, remove some and were done with the target chemical
@@ -141,7 +140,7 @@ fn process(input: &str, fuel_amount: i64) -> i64 {
                     let reaction = reactions
                         .get(target_chemical.0)
                         .expect("Weird, no reaction found")
-                        .clone()
+                        .to_owned()
                         .match_target_amount(*target_chemical.1 - *stored_chemical_amount);
 
                     //println!("Reaction procesed: {}", reaction);
@@ -230,8 +229,9 @@ pub fn part2() {
     let mut min_fuel_amount: i64 = 1935202; // Empirical, < needs 1 trillion ore
     let mut max_fuel_amount: i64 = 1935330; // Empirical, > needs 1 trillion ore
 
-    let mut fuel_amount: i64 = (max_fuel_amount + min_fuel_amount) / 2;
     loop {
+        let fuel_amount: i64 = (max_fuel_amount + min_fuel_amount) / 2;
+
         let ore = process(&input, fuel_amount);
 
         println!(
@@ -244,12 +244,11 @@ pub fn part2() {
             min_fuel_amount = fuel_amount;
         }
 
-        if min_fuel_amount >= max_fuel_amount - 1 {
+        if max_fuel_amount - min_fuel_amount <= 2 {
             assert_eq!(ore, 999999660128);
             assert_eq!(fuel_amount, 1935265);
 
             break;
         }
-        fuel_amount = (min_fuel_amount + max_fuel_amount) / 2;
     }
 }

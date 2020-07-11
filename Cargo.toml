@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 	permute = "0.1.0"
 	libmath = "0.2.1"
+	pathfinding = "2.0.4"
