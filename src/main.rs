@@ -70,9 +70,9 @@ fn main() {
     // day13::part1();
     // day13::part2();
 
-    day14::test();
-    day14::part1();
-    day14::part2();
+    // day14::test();
+    // day14::part1();
+    // day14::part2();
 
     day15::test();
     day15::part1();
