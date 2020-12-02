@@ -1,41 +1,35 @@
 use crate::common::*;
-use std::iter;
 
-fn create_pattern(position: usize, width: usize) -> Vec<i32> {
+fn multiplier(index: usize, position: usize) -> i32 {
     assert!(position > 0);
 
-    let mut result = Vec::<i32>::new();
+    let ix = index % (4 * position);
 
-    for p in &[0, 1, 0, -1] {
-        result.extend(iter::repeat(p).take(position));
+    if ix >= position - 1 && ix < 2 * position - 1 {
+        1
+    } else if ix >= 2 * position - 1 && ix < 3 * position - 1 {
+        0
+    } else if ix >= 3 * position - 1 && ix < 4 * position - 1 {
+        -1
+    } else {
+        0
     }
-
-    while result.len() < width + 1 {
-        result.extend(result.clone());
-    }
-
-    result.remove(0);
-
-    result
 }
 
-fn single_position(position: usize, input: &Vec::<i32>) -> i32 {
-    let pattern = create_pattern(position + 1, input.len());
+fn fft_single_position(position: usize, input: &Vec<i32>) -> i32 {
     let mut result = 0;
 
     for i in 0..input.len() {
-        result += input[i] * pattern[i];
+        result += input[i] * multiplier(i, position + 1);
     }
-    result = result.abs() % 10;
-
-    result
+    result.abs() % 10
 }
 
-fn single_phase(input: &Vec<i32>) -> Vec<i32> {
+fn fft_single_phase(input: &Vec<i32>) -> Vec<i32> {
     let mut output = vec![0; input.len()];
 
-    for position in 0..input.len() {
-        output[position] = single_position(position, input);
+    for position in 0..output.len() {
+        output[position] = fft_single_position(position, input);
     }
 
     output
@@ -44,7 +38,7 @@ fn single_phase(input: &Vec<i32>) -> Vec<i32> {
 fn fft(input: &Vec<i32>, phases: i32) -> Vec<i32> {
     let mut output = input.clone();
     for _ in 0..phases {
-        output = single_phase(&output);
+        output = fft_single_phase(&output);
     }
     output
 }
@@ -65,30 +59,12 @@ fn parse_offset(input: &str) -> i32 {
 }
 
 pub fn test() {
-    let p = create_pattern(1, 16);
-    println!("{:?}", p);
-    let p = create_pattern(2, 16);
-    println!("{:?}", p);
-    let p = create_pattern(3, 16);
-    println!("{:?}", p);
-
-    let mut input = vec![1, 2, 3, 4, 5, 6, 7, 8];
-
-    for _ in 0..4 {
-        input = single_phase(&input);
-
-        println!("{:?}", input);
+    let mut result = parse_input("00000010").repeat(16);
+    println!("{:?}", &result[0..100]);
+    for _ in 0..8 {
+        result = fft_single_phase(&result);
+        println!("{:?}", &result[0..100]);
     }
-
-    let result = fft(&parse_input("80871224585914546619083218645595"), 100);
-    println!("{:?}", &result[0..8]);
-    assert_eq!(&result[0..8], [2, 4, 1, 7, 6, 1, 7, 6]);
-    let result = fft(&parse_input("19617804207202209144916044189917"), 100);
-    println!("{:?}", &result[0..8]);
-    assert_eq!(&result[0..8], [7, 3, 7, 4, 5, 4, 1, 8]);
-    let result = fft(&parse_input("69317163492948606335995924319873"), 100);
-    println!("{:?}", &result[0..8]);
-    assert_eq!(&result[0..8], [5, 2, 4, 3, 2, 1, 3, 3]);
 }
 
 pub fn part1() {
@@ -99,10 +75,10 @@ pub fn part1() {
 }
 
 pub fn part2() {
-    let input = import_lines("src/day16/input.txt").repeat(10000);
-    let offset = parse_offset(&input);
+    // let input = import_lines("src/day16/input.txt").repeat(10000);
+    // let offset = parse_offset(&input) as usize;
 
-    println!("{}", offset);
-    let result = fft(&parse_input(&input), 1);
-    println!("Part 2 : {:?}", &result[0..8]);
+    // println!("{}", offset);
+    // let result = fft(&parse_input(&input), 1);
+    // println!("Part 2 : {:?}", &result[offset..offset+8]);
 }

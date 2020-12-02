@@ -112,9 +112,9 @@ impl Parameter {
 
     fn relative_address(&self, program: &Program) -> usize {
         if self.value < 0 {
-            (program.relative_base - self.value.abs() as usize)
+            program.relative_base - self.value.abs() as usize
         } else {
-            (program.relative_base + self.value.abs() as usize)
+            program.relative_base + self.value.abs() as usize
         }
     }
 

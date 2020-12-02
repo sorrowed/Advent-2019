@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-#[derive(Clone, Hash)]
+#[derive(Debug,Clone, Hash)]
 pub struct Vector {
     pub x: i32,
     pub y: i32,
