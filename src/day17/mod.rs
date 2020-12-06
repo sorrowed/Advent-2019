@@ -1,10 +1,12 @@
 use crate::common::*;
 use crate::cpu::*;
 use std::collections::HashMap;
+use std::{thread, time};
 
 type TileType = String;
 type MapType = HashMap<Vector, TileType>;
 
+#[derive(Clone)]
 enum Direction {
     UNKNOWN,
     NORTH,
@@ -28,8 +30,8 @@ impl Direction {
         match *self {
             Direction::NORTH => Direction::WEST,
             Direction::WEST => Direction::SOUTH,
-            Direction::EAST => Direction::SOUTH,
             Direction::SOUTH => Direction::EAST,
+            Direction::EAST => Direction::NORTH,
             _ => panic!(),
         }
     }
@@ -37,9 +39,9 @@ impl Direction {
     pub fn turn_right(&self) -> Direction {
         match *self {
             Direction::NORTH => Direction::EAST,
-            Direction::WEST => Direction::NORTH,
-            Direction::EAST => Direction::NORTH,
+            Direction::EAST => Direction::SOUTH,
             Direction::SOUTH => Direction::WEST,
+            Direction::WEST => Direction::NORTH,
             _ => panic!(),
         }
     }
@@ -48,14 +50,14 @@ impl Direction {
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let c = match *self {
-            Direction::NORTH => Some("North"),
-            Direction::WEST => Some("West"),
-            Direction::EAST => Some("East"),
-            Direction::SOUTH => Some("South"),
+            Direction::NORTH => Some('^'),
+            Direction::WEST => Some('<'),
+            Direction::EAST => Some('>'),
+            Direction::SOUTH => Some('v'),
             _ => None,
         };
 
-        writeln!(f, "{}", c.expect("Not a valid direction")).expect("IO error");
+        write!(f, "{}", c.expect("Not a valid direction")).expect("IO error");
 
         std::fmt::Result::Ok(())
     }
@@ -147,33 +149,82 @@ impl Map {
         result
     }
 
-    pub fn move_robot(&mut self, m: char) {
-        match m {
-            'L' => self.heading = self.heading.turn_left(),
-            'R' => self.heading = self.heading.turn_right(),
-            '1'..='9' => {
-                let reps = (m as u8) - ('0' as u8);
+    fn forward(location: &Vector, heading: &Direction) -> Vector {
+        let mut result = location.clone();
 
-                for _ in 0..reps {
-                    match self.heading {
-                        Direction::NORTH => {
-                            self.location.y -= 1;
-                        }
-                        Direction::WEST => {
-                            self.location.x -= 1;
-                        }
-                        Direction::SOUTH => {
-                            self.location.y += 1;
-                        }
-                        Direction::EAST => {
-                            self.location.x += 1;
-                        }
-                        _ => panic!("Cannot move when heading is unknown"),
-                    }
-                }
+        match heading {
+            Direction::NORTH => {
+                result.y -= 1;
             }
-            _ => panic!("Invalid move"),
+            Direction::WEST => {
+                result.x -= 1;
+            }
+            Direction::SOUTH => {
+                result.y += 1;
+            }
+            Direction::EAST => {
+                result.x += 1;
+            }
+            _ => panic!("Cannot move when heading is unknown"),
         }
+
+        result
+    }
+
+    pub fn find_route(&mut self) -> Vec<String> {
+        let mut route = vec![];
+        let mut turn: Option<String> = None;
+
+        let mut turns = 0;
+        let mut forwards = 0;
+
+        while turns < 3 {
+            let l = Self::forward(&self.location, &self.heading);
+
+            let valid_move = if let Some(p) = self.tiles.get(&l) {
+                p == "#"
+            } else {
+                false
+            };
+
+            if valid_move {
+                *self.tiles.get_mut(&self.location).unwrap() = "#".to_string();
+
+                self.location = Self::forward(&self.location, &self.heading);
+                if let Some(t) = turn {
+                    if forwards > 0 {
+                        route.push(forwards.to_string());
+                        forwards = 0;
+                    }
+
+                    route.push(t);
+                }
+                turn = None;
+                turns = 0;
+
+                forwards += 1;
+
+                //println!("\x1B[1;1H{}", self);
+                //std::thread::sleep(time::Duration::from_millis(10));
+            } else {
+                if turns == 0 {
+                    self.heading = self.heading.turn_right();
+                    turn = Some("R".to_string());
+                } else if turns == 1 {
+                    self.heading = self.heading.turn_left().turn_left();
+                    turn = Some("L".to_string());
+                } else {
+                    // Must be the end of the scaffolding
+                    if forwards > 0 {
+                        route.push(forwards.to_string());
+                    }
+                    break;
+                }
+                turns += 1;
+            }
+        }
+
+        route
     }
 }
 
@@ -182,7 +233,11 @@ impl std::fmt::Display for Map {
         let extends = self.extends();
         for y in extends.0.y..=extends.1.y {
             for x in extends.0.x..=extends.1.x {
-                write!(f, "{}", self.tiles[&Vector::new(x, y, 0)]).expect("IO error");
+                if self.location.x == x && self.location.y == y {
+                    write!(f, "{}", self.heading).expect("IO error");
+                } else {
+                    write!(f, "{}", self.tiles[&Vector::new(x, y, 0)]).expect("IO error");
+                }
             }
             writeln!(f).expect("IO error");
         }
@@ -201,8 +256,8 @@ pub fn test() {
     for v in &intersections {
         println!("{} {}", v, v.x * v.y);
     }
-    print!("{} {} {}", map, map.start, map.heading);
-    assert_eq!(map.start, Vector::new(10, 6, 0));
+    print!("{} {} {}", map, map.location, map.heading);
+    assert_eq!(map.location, Vector::new(10, 6, 0));
     assert_eq!(intersections.iter().fold(0, |acc, c| acc + c.x * c.y), 76);
 }
 
@@ -221,8 +276,38 @@ pub fn part1() {
         "Sum of the alignment parameters {}",
         intersections.iter().fold(0, |acc, c| acc + c.x * c.y)
     );
-
-    print!("{}", map);
 }
 
-pub fn part2() {}
+pub fn part2() {
+    let input = import_lines("src/day17/input.txt");
+    let mut program = read(&input);
+    while !program.is_finished() {
+        execute(&mut program);
+    }
+
+    let mut map = Map::new();
+    map.update(&program.output);
+
+    let route = map.find_route();
+    for c in route {
+        print!("{}", c)
+    }
+    println!("");
+
+    let mut program = read(&input);
+    program.flush();
+
+    program.set(0, 2);
+
+    // Printing the latter shows the following sub-paths in order A,A,B,A,B,C,B
+    let moves = "A,B,A,B,C,A,B,C,A,C\nR,6,L,10,R,8\nR,8,R,12,L,8,L,8\nL,10,R,6,R,6,L,8\nn\n";
+    for c in moves.chars(){
+        program.add_input((c as u8)as i64);
+    }
+
+    while !program.is_finished() {
+        execute(&mut program);
+    }
+
+    println!("Dust collected : {}", program.get_output(program.output.len()-1).unwrap())
+}
